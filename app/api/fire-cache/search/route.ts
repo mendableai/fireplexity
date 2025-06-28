@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createOpenAI } from '@ai-sdk/openai'
+import { getLLMProvider, Provider } from '@/lib/llm-provider'
 import { streamText, generateText, createDataStreamResponse } from 'ai'
 import { detectCompanyTicker } from '@/lib/company-ticker-map'
 
@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   console.log(`[${requestId}] Fire Cache Search API called`)
   try {
     const body = await request.json()
-    const messages = body.messages || []
+    const { messages = [], provider = 'groq', model = 'llama3-8b-8192' } = body
     const query = messages[messages.length - 1]?.content || body.query
     console.log(`[${requestId}] Query received:`, query)
 
@@ -17,20 +17,14 @@ export async function POST(request: Request) {
     }
 
     const firecrawlApiKey = process.env.FIRECRAWL_API_KEY
-    const openaiApiKey = process.env.OPENAI_API_KEY
-    
+    const llmProvider = getLLMProvider(provider as Provider)
+    const llmModel = llmProvider(model)
+    console.log(`[${requestId}] Using provider: ${provider}, model: ${model}`)
+    console.log(`[${requestId}] LLM Model Object:`, llmModel)
+
     if (!firecrawlApiKey) {
       return NextResponse.json({ error: 'Firecrawl API key not configured' }, { status: 500 })
     }
-    
-    if (!openaiApiKey) {
-      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
-    }
-
-    // Configure OpenAI with API key
-    const openai = createOpenAI({
-      apiKey: openaiApiKey
-    })
 
     // Always perform a fresh search for each query to ensure relevant results
     const isFollowUp = messages.length > 2
@@ -200,7 +194,7 @@ export async function POST(request: Request) {
             : `user: ${query}`
             
           const followUpPromise = generateText({
-            model: openai('gpt-4o'),
+            model: llmModel,
             messages: [
               {
                 role: 'system',
@@ -213,15 +207,15 @@ export async function POST(request: Request) {
                 content: `Query: ${query}\n\nConversation context:\n${conversationPreview}\n\n${sources.length > 0 ? `Available sources about: ${sources.map((s: { title: string }) => s.title).join(', ')}\n\n` : ''}Generate 5 diverse follow-up questions that would help the user learn more about this topic from different angles.`
               }
             ],
-            temperature: 0.7,
+            temperature: 0.5,
             maxTokens: 150,
           })
           
           // Stream the text generation
           const result = streamText({
-            model: openai('gpt-4o'),
+            model: llmModel,
             messages: aiMessages,
-            temperature: 0.7,
+            temperature: 0.5,
             maxTokens: 2000
           })
           

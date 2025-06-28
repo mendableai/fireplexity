@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createOpenAI } from '@ai-sdk/openai'
+import { getLLMProvider, Provider } from '@/lib/llm-provider'
 import { streamText, generateText, createDataStreamResponse } from 'ai'
 import { detectCompanyTicker } from '@/lib/company-ticker-map'
 import { selectRelevantContent } from '@/lib/content-selection'
@@ -10,8 +10,11 @@ export async function POST(request: Request) {
   console.log(`[${requestId}] Fireplexity Search API called`)
   try {
     const body = await request.json()
-    const messages = body.messages || []
+    const { messages = [], provider = 'groq', model = 'llama3-8b-8192' } = body
+    // pick the requested LLM
+    const llmModel = getLLMProvider(provider as Provider)(model)
     const query = messages[messages.length - 1]?.content || body.query
+
     console.log(`[${requestId}] Query received:`, query)
 
     if (!query) {
@@ -29,11 +32,6 @@ export async function POST(request: Request) {
     if (!openaiApiKey) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
-
-    // Configure OpenAI with API key
-    const openai = createOpenAI({
-      apiKey: openaiApiKey
-    })
 
     // Initialize Firecrawl
     const firecrawl = new FirecrawlApp({ apiKey: firecrawlApiKey })
@@ -170,13 +168,13 @@ export async function POST(request: Request) {
             ]
           }
           
-          // Start generating follow-up questions in parallel (before streaming answer)
+          // Start generating follow-up questions in parallel
           const conversationPreview = isFollowUp 
             ? messages.map((m: { role: string; content: string }) => `${m.role}: ${m.content}`).join('\n\n')
             : `user: ${query}`
             
           const followUpPromise = generateText({
-            model: openai('gpt-4o-mini'),
+            model: llmModel,
             messages: [
               {
                 role: 'system',
@@ -195,7 +193,7 @@ export async function POST(request: Request) {
           
           // Stream the text generation
           const result = streamText({
-            model: openai('gpt-4o-mini'),
+            model: llmModel,
             messages: aiMessages,
             temperature: 0.7,
             maxTokens: 2000

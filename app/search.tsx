@@ -20,7 +20,13 @@ export function SearchComponent({ handleSubmit, input, handleInputChange, isLoad
           value={input}
           onChange={handleInputChange}
           placeholder="Ask anything..."
-          className="pr-24 h-14 text-lg rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-zinc-800 transition-colors"
+          className="flex w-full min-w-0 px-3 py-1 h-14 rounded-xl border border-gray-200 dark:border-gray-700
+          bg-white dark:bg-zinc-800
+          text-gray-900 dark:text-gray-100
+          placeholder:text-gray-500 dark:placeholder:text-gray-400
+          selection:bg-primary selection:text-primary-foreground
+          focus-visible:border-orange-400 focus-visible:ring-orange-400/20 focus-visible:ring-2
+          transition-colors"
           disabled={isLoading}
         />
         <Button
@@ -30,9 +36,9 @@ export function SearchComponent({ handleSubmit, input, handleInputChange, isLoad
           className="absolute right-2 rounded-lg"
         >
           {isLoading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Search className="h-5 w-5" />
+            <Search className="h-4 w-4" />
           )}
         </Button>
       </div>
