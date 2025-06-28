@@ -21,7 +21,7 @@ export function SearchComponent({ handleSubmit, input, handleInputChange, isLoad
           value={input}
           onChange={handleInputChange}
           placeholder="Ask anything..."
-          className="pr-24 h-14 text-lg rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-zinc-800 transition-colors"
+          className="pr-24 h-14 text-lg rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-orange-500 focus:border-orange-500 transition-colors"
           disabled={isLoading || disabled}
         />
         <Button

@@ -19,13 +19,7 @@ import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { ErrorDisplay } from '@/components/error-display'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 
 
 interface MessageData {
@@ -196,13 +190,12 @@ export default function FireplexityPage() {
             return
           }
           const modelData = await response.json()
-          // Filter for chat models and sort by name
-          const chatModels = modelData.data
-            .filter((model: OpenRouterModel) => model.id.includes("chat") || model.name?.toLowerCase().includes("chat")) // Basic filtering
+          // Sort all models by name
+          const allModels = modelData.data
             .sort((a: OpenRouterModel, b: OpenRouterModel) => (a.name || a.id).localeCompare(b.name || b.id));
-          setAvailableOpenRouterModels(chatModels)
-          if (chatModels.length > 0 && !openRouterModel) {
-            setOpenRouterModel(chatModels[0].id) // Set default model
+          setAvailableOpenRouterModels(allModels)
+          if (allModels.length > 0 && !openRouterModel) {
+            setOpenRouterModel(allModels[0].id) // Set default model
           }
         } catch (error) {
           console.error('Error fetching OpenRouter models:', error)
@@ -389,43 +382,36 @@ export default function FireplexityPage() {
       {/* Configuration Section - Only show before first search */}
       {!isChatActive && (
         <div className="px-4 sm:px-6 lg:px-8 pb-8">
-          <div className="max-w-2xl mx-auto p-6 bg-white dark:bg-zinc-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Configuration</h2>
+          <div className="max-w-2xl mx-auto p-6 bg-gray-50 rounded-lg shadow-md border border-gray-200">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">Configuration</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label htmlFor="provider-select" className="text-gray-700 dark:text-gray-300">LLM Provider</Label>
-                <Select value={provider} onValueChange={setProvider}>
-                  <SelectTrigger id="provider-select" className="mt-1">
-                    <SelectValue placeholder="Select Provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="openrouter">OpenRouter</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="provider-select" className="text-gray-700">LLM Provider</Label>
+                <Combobox
+                  options={[
+                    { value: "openai", label: "OpenAI" },
+                    { value: "openrouter", label: "OpenRouter" },
+                  ]}
+                  value={provider}
+                  onChange={setProvider}
+                  placeholder="Select Provider"
+                  searchPlaceholder="Search providers..."
+                  emptyStateMessage="No provider found."
+                />
               </div>
 
               {provider === 'openrouter' && (
                 <div>
-                  <Label htmlFor="openrouter-model-select" className="text-gray-700 dark:text-gray-300">OpenRouter Model</Label>
-                  <Select value={openRouterModel} onValueChange={setOpenRouterModel} disabled={isFetchingModels || availableOpenRouterModels.length === 0}>
-                    <SelectTrigger id="openrouter-model-select" className="mt-1">
-                      <SelectValue placeholder={isFetchingModels ? "Loading models..." : "Select Model"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {isFetchingModels ? (
-                        <SelectItem value="loading" disabled>Loading models...</SelectItem>
-                      ) : availableOpenRouterModels.length === 0 ? (
-                        <SelectItem value="no-models" disabled>No models found or failed to load</SelectItem>
-                      ) : (
-                        availableOpenRouterModels.map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
-                            {model.name || model.id}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="openrouter-model-select" className="text-gray-700">OpenRouter Model</Label>
+                  <Combobox
+                    options={availableOpenRouterModels.map(model => ({ value: model.id, label: model.name || model.id }))}
+                    value={openRouterModel}
+                    onChange={setOpenRouterModel}
+                    placeholder={isFetchingModels ? "Loading models..." : "Select Model"}
+                    searchPlaceholder="Search models..."
+                    emptyStateMessage={isFetchingModels ? "Loading..." : (availableOpenRouterModels.length === 0 ? "No models found or failed to load" : "No model found.")}
+                    disabled={isFetchingModels || availableOpenRouterModels.length === 0}
+                  />
                   {!hasOpenRouterApiKey && (
                     <Button variant="link" size="sm" className="mt-1 px-0 text-orange-600 hover:text-orange-700" onClick={() => setShowOpenRouterApiKeyModal(true)}>
                       Set OpenRouter API Key
