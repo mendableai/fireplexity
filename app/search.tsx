@@ -9,9 +9,10 @@ interface SearchComponentProps {
   input: string
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => void
   isLoading: boolean
+  disabled?: boolean
 }
 
-export function SearchComponent({ handleSubmit, input, handleInputChange, isLoading }: SearchComponentProps) {
+export function SearchComponent({ handleSubmit, input, handleInputChange, isLoading, disabled }: SearchComponentProps) {
   return (
     <form onSubmit={handleSubmit} className="max-w-4xl mx-auto pt-12">
       <div className="relative flex items-center">
@@ -21,11 +22,11 @@ export function SearchComponent({ handleSubmit, input, handleInputChange, isLoad
           onChange={handleInputChange}
           placeholder="Ask anything..."
           className="pr-24 h-14 text-lg rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-zinc-800 transition-colors"
-          disabled={isLoading}
+          disabled={isLoading || disabled}
         />
         <Button
           type="submit"
-          disabled={isLoading || !input.trim()}
+          disabled={isLoading || disabled || !input.trim()}
           variant="orange"
           className="absolute right-2 rounded-lg"
         >

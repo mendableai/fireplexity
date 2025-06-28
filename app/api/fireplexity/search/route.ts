@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createOpenAI } from '@ai-sdk/openai'
+import { createOpenAI, OpenAIProvider } from '@ai-sdk/openai'
 import { streamText, generateText, createDataStreamResponse } from 'ai'
 import { detectCompanyTicker } from '@/lib/company-ticker-map'
 import { selectRelevantContent } from '@/lib/content-selection'
@@ -12,28 +12,51 @@ export async function POST(request: Request) {
     const body = await request.json()
     const messages = body.messages || []
     const query = messages[messages.length - 1]?.content || body.query
+    const provider = body.provider || 'openai' // Default to openai
+    const openRouterModel = body.openRouterModel // Model for OpenRouter
+    const openRouterApiKey = body.openRouterApiKey || process.env.OPENROUTER_API_KEY
+
     console.log(`[${requestId}] Query received:`, query)
+    console.log(`[${requestId}] Provider:`, provider)
+    if (provider === 'openrouter') {
+      console.log(`[${requestId}] OpenRouter Model:`, openRouterModel)
+    }
 
     if (!query) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 })
     }
 
-    // Use API key from request body if provided, otherwise fall back to environment variable
+    // API key validation
     const firecrawlApiKey = body.firecrawlApiKey || process.env.FIRECRAWL_API_KEY
-    const openaiApiKey = process.env.OPENAI_API_KEY
-    
     if (!firecrawlApiKey) {
       return NextResponse.json({ error: 'Firecrawl API key not configured' }, { status: 500 })
     }
-    
-    if (!openaiApiKey) {
-      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
-    }
 
-    // Configure OpenAI with API key
-    const openai = createOpenAI({
-      apiKey: openaiApiKey
-    })
+    let llmProvider: OpenAIProvider
+    let modelName: string = 'gpt-4o-mini' // Default OpenAI model
+
+    if (provider === 'openai') {
+      const openaiApiKey = process.env.OPENAI_API_KEY
+      if (!openaiApiKey) {
+        return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
+      }
+      llmProvider = createOpenAI({ apiKey: openaiApiKey })
+    } else if (provider === 'openrouter') {
+      if (!openRouterApiKey) {
+        return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 })
+      }
+      if (!openRouterModel) {
+        return NextResponse.json({ error: 'OpenRouter model not selected' }, { status: 400 })
+      }
+      llmProvider = createOpenAI({
+        apiKey: openRouterApiKey,
+        baseURL: 'https://openrouter.ai/api/v1',
+      })
+      modelName = openRouterModel
+      console.log(`[${requestId}] Using OpenRouter model: ${modelName}`)
+    } else {
+      return NextResponse.json({ error: 'Invalid provider specified' }, { status: 400 })
+    }
 
     // Initialize Firecrawl
     const firecrawl = new FirecrawlApp({ apiKey: firecrawlApiKey })
@@ -176,7 +199,7 @@ export async function POST(request: Request) {
             : `user: ${query}`
             
           const followUpPromise = generateText({
-            model: openai('gpt-4o-mini'),
+            model: llmProvider(modelName), // Use dynamic model and provider
             messages: [
               {
                 role: 'system',
@@ -195,7 +218,7 @@ export async function POST(request: Request) {
           
           // Stream the text generation
           const result = streamText({
-            model: openai('gpt-4o-mini'),
+            model: llmProvider(modelName), // Use dynamic model and provider
             messages: aiMessages,
             temperature: 0.7,
             maxTokens: 2000
@@ -239,11 +262,11 @@ export async function POST(request: Request) {
           const errorResponses: Record<number, { error: string; suggestion?: string }> = {
             401: {
               error: 'Invalid API key',
-              suggestion: 'Please check your Firecrawl API key is correct.'
+              suggestion: 'Please check your API key for the selected provider.'
             },
             402: {
               error: 'Insufficient credits',
-              suggestion: 'You\'ve run out of Firecrawl credits. Please upgrade your plan.'
+              suggestion: 'You\'ve run out of credits for the selected provider. Please upgrade your plan.'
             },
             429: {
               error: 'Rate limit exceeded',
