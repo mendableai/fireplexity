@@ -199,7 +199,7 @@ export function ChatInterface({ messages, sources, followUpQuestions, searchStat
                                           </svg>
                                         )}
                                       </div>
-                                    ))}
+                                   ))}
                                   </div>
                                 </div>
                               )}
@@ -614,7 +614,7 @@ export function ChatInterface({ messages, sources, followUpQuestions, searchStat
                     }
                   }}
                   placeholder="Ask a follow-up question..."
-                  className="resize-none border-0 focus:ring-0 focus:outline-none bg-transparent placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 py-2 pr-2 shadow-none focus-visible:ring-0 focus-visible:border-0"
+                  className="resize-none border-0 focus:ring-0 focus:outline-none bg-transparent placeholder:text-gray-500 dark:placeholder:text-gray-400 text-gray-900 dark:text-gray-100 px-4 py-2 pr-2 shadow-none focus-visible:ring-0 focus-visible:border-0"
                   rows={1}
                   style={{
                     minHeight: '36px',
@@ -626,7 +626,8 @@ export function ChatInterface({ messages, sources, followUpQuestions, searchStat
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading}
-                  className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full h-8 w-8 min-h-[32px] min-w-[32px] flex items-center justify-center flex-shrink-0 transition-colors"
+                  className={`bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-full h-8 w-8 min-h-[32px] min-w-[32px] flex items-center justify-center flex-shrink-0 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50`}
+                  aria-label="Send"
                 >
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
