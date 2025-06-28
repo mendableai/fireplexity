@@ -184,7 +184,196 @@ export const companyTickerMap: Record<string, string> = {
   'at&t': 'NYSE:T',
   'att': 'NYSE:T',
   't-mobile': 'NASDAQ:TMUS',
-  'tmobile': 'NASDAQ:TMUS'
+  'tmobile': 'NASDAQ:TMUS',
+
+  // Major Indices
+  'sp500': 'INDEX:SPX',
+  's&p500': 'INDEX:SPX',
+  's&p 500': 'INDEX:SPX',
+  's&p': 'INDEX:SPX',
+  'sandp': 'INDEX:SPX',
+  'us500': 'INDEX:SPX',
+  'spx': 'INDEX:SPX',
+  'spy': 'NYSEARCA:SPY',
+  'dow jones': 'INDEX:DJI',
+  'dow': 'INDEX:DJI',
+  'djia': 'INDEX:DJI',
+  'us30': 'INDEX:DJI',
+  'nasdaq': 'INDEX:IXIC',
+  'nasdaq 100': 'INDEX:NDX',
+  'ndx': 'INDEX:NDX',
+  'qqq': 'NASDAQ:QQQ',
+  'russell 2000': 'INDEX:RUT',
+  'russell': 'INDEX:RUT',
+  'rut': 'INDEX:RUT',
+  'vix': 'INDEX:VIX',
+  'dax': 'XETR:DAX',
+  'ftse': 'LSE:FTSE',
+  'cac': 'EPA:CAC',
+  'nikkei': 'INDEX:N225',
+  'n225': 'INDEX:N225',
+  'hang seng': 'INDEX:HSI',
+  'hsi': 'INDEX:HSI',
+
+  // Top 20 Cryptocurrencies (by market cap, 2024)
+  'bitcoin': 'CRYPTO:BTCUSD',
+  'btc': 'CRYPTO:BTCUSD',
+  'ethereum': 'CRYPTO:ETHUSD',
+  'eth': 'CRYPTO:ETHUSD',
+  'tether': 'CRYPTO:USDTUSD',
+  'usdt': 'CRYPTO:USDTUSD',
+  'binance coin': 'CRYPTO:BNBUSD',
+  'bnb': 'CRYPTO:BNBUSD',
+  'solana': 'CRYPTO:SOLUSD',
+  'sol': 'CRYPTO:SOLUSD',
+  'ripple': 'CRYPTO:XRPUSD',
+  'xrp': 'CRYPTO:XRPUSD',
+  'usd coin': 'CRYPTO:USDCUSD',
+  'usdc': 'CRYPTO:USDCUSD',
+  'staked ether': 'CRYPTO:STETHUSD',
+  'steth': 'CRYPTO:STETHUSD',
+  'dogecoin': 'CRYPTO:DOGEUSD',
+  'doge': 'CRYPTO:DOGEUSD',
+  'cardano': 'CRYPTO:ADAUSD',
+  'ada': 'CRYPTO:ADAUSD',
+  'tron': 'CRYPTO:TRXUSD',
+  'trx': 'CRYPTO:TRXUSD',
+  'toncoin': 'CRYPTO:TONUSD',
+  'ton': 'CRYPTO:TONUSD',
+  'avalanche': 'CRYPTO:AVAXUSD',
+  'avax': 'CRYPTO:AVAXUSD',
+  'shiba inu': 'CRYPTO:SHIBUSD',
+  'shib': 'CRYPTO:SHIBUSD',
+  'polkadot': 'CRYPTO:DOTUSD',
+  'dot': 'CRYPTO:DOTUSD',
+  'wrapped bitcoin': 'CRYPTO:WBTCUSD',
+  'wbtc': 'CRYPTO:WBTCUSD',
+  'bitcoin cash': 'CRYPTO:BCHUSD',
+  'bch': 'CRYPTO:BCHUSD',
+  'chainlink': 'CRYPTO:LINKUSD',
+  'link': 'CRYPTO:LINKUSD',
+  'matic': 'CRYPTO:MATICUSD',
+  'polygon': 'CRYPTO:MATICUSD',
+  'litecoin': 'CRYPTO:LTCUSD',
+  'ltc': 'CRYPTO:LTCUSD',
+  'internet computer': 'CRYPTO:ICPUSD',
+  'icp': 'CRYPTO:ICPUSD',
+  'uniswap': 'CRYPTO:UNIUSD',
+  'uni': 'CRYPTO:UNIUSD',
+  'leo': 'CRYPTO:LEOUSD',
+  'dai': 'CRYPTO:DAIUSD',
+  'ethereum classic': 'CRYPTO:ETCUSD',
+  'etc': 'CRYPTO:ETCUSD',
+  'aptos': 'CRYPTO:APTUSD',
+  'apt': 'CRYPTO:APTUSD',
+  'filecoin': 'CRYPTO:FILUSD',
+  'fil': 'CRYPTO:FILUSD',
+  'stellar': 'CRYPTO:XLMUSD',
+  'xlm': 'CRYPTO:XLMUSD',
+  'vechain': 'CRYPTO:VETUSD',
+  'vet': 'CRYPTO:VETUSD',
+  'aave': 'CRYPTO:AAVEUSD',
+  'sushi': 'CRYPTO:SUSHIUSD',
+  'compound': 'CRYPTO:COMPUSD',
+  'yearn finance': 'CRYPTO:YFIUSD',
+  'yfi': 'CRYPTO:YFIUSD',
+  'curve': 'CRYPTO:CRVUSD',
+  'crv': 'CRYPTO:CRVUSD',
+  'holo': 'CRYPTO:HOTUSD',
+  'hot': 'CRYPTO:HOTUSD',
+  'thorchain': 'CRYPTO:RUNEUSD',
+  'rune': 'CRYPTO:RUNEUSD',
+  'dash': 'CRYPTO:DASHUSD',
+  'zcash': 'CRYPTO:ZECUSD',
+  'qtum': 'CRYPTO:QTUMUSD',
+  'omisego': 'CRYPTO:OMGUSD',
+  '0x': 'CRYPTO:ZRXUSD',
+  'basic attention token': 'CRYPTO:BATUSD',
+  'bat': 'CRYPTO:BATUSD',
+  'decentraland': 'CRYPTO:MANAUSD',
+  'sand': 'CRYPTO:SANDUSD',
+  'the sandbox': 'CRYPTO:SANDUSD',
+  'axie infinity': 'CRYPTO:AXSUSD',
+  'axs': 'CRYPTO:AXSUSD',
+  'chiliz': 'CRYPTO:CHZUSD',
+  'flow': 'CRYPTO:FLOWUSD',
+  'gala': 'CRYPTO:GALAUSD',
+  'immutable x': 'CRYPTO:IMXUSD',
+  'imx': 'CRYPTO:IMXUSD',
+  'metis': 'CRYPTO:METISUSD',
+  'near': 'CRYPTO:NEARUSD',
+  'ocean protocol': 'CRYPTO:OCEANUSD',
+  'ocean': 'CRYPTO:OCEANUSD',
+  'render token': 'CRYPTO:RNDRUSD',
+  'rndr': 'CRYPTO:RNDRUSD',
+  'sora': 'CRYPTO:XORUSD',
+  'synth s&p 500': 'CRYPTO:SPYUSD',
+  'synth dow jones': 'CRYPTO:DJIUSD',
+  'synth nasdaq': 'CRYPTO:IXICUSD',
+  'synth russell 2000': 'CRYPTO:RUTUSD',
+  'synth vix': 'CRYPTO:VIXUSD',
+  'synth dax': 'CRYPTO:DAXUSD',
+  'synth ftse': 'CRYPTO:FTSEUSD',
+  'synth cac': 'CRYPTO:CACUSD',
+  'synth nikkei': 'CRYPTO:N225USD',
+  'synth hang seng': 'CRYPTO:HSIUSD',
+  'synth bitcoin': 'CRYPTO:BTCUSD',
+  'synth ethereum': 'CRYPTO:ETHUSD',
+  'synth tether': 'CRYPTO:USDTUSD',
+  'synth binance coin': 'CRYPTO:BNBUSD',
+  'synth solana': 'CRYPTO:SOLUSD',
+  'synth ripple': 'CRYPTO:XRPUSD',
+  'synth usd coin': 'CRYPTO:USDCUSD',
+  'synth staked ether': 'CRYPTO:STETHUSD',
+  'synth dogecoin': 'CRYPTO:DOGEUSD',
+  'synth cardano': 'CRYPTO:ADAUSD',
+  'synth tron': 'CRYPTO:TRXUSD',
+  'synth toncoin': 'CRYPTO:TONUSD',
+  'synth avalanche': 'CRYPTO:AVAXUSD',
+  'synth shiba inu': 'CRYPTO:SHIBUSD',
+  'synth polkadot': 'CRYPTO:DOTUSD',
+  'synth wrapped bitcoin': 'CRYPTO:WBTCUSD',
+  'synth bitcoin cash': 'CRYPTO:BCHUSD',
+  'synth chainlink': 'CRYPTO:LINKUSD',
+  'synth matic': 'CRYPTO:MATICUSD',
+  'synth litecoin': 'CRYPTO:LTCUSD',
+  'synth internet computer': 'CRYPTO:ICPUSD',
+  'synth uniswap': 'CRYPTO:UNIUSD',
+  'synth leo': 'CRYPTO:LEOUSD',
+  'synth dai': 'CRYPTO:DAIUSD',
+  'synth ethereum classic': 'CRYPTO:ETCUSD',
+  'synth aptos': 'CRYPTO:APTUSD',
+  'synth filecoin': 'CRYPTO:FILUSD',
+  'synth stellar': 'CRYPTO:XLMUSD',
+  'synth vechain': 'CRYPTO:VETUSD',
+  'synth aave': 'CRYPTO:AAVEUSD',
+  'synth sushi': 'CRYPTO:SUSHIUSD',
+  'synth compound': 'CRYPTO:COMPUSD',
+  'synth yearn finance': 'CRYPTO:YFIUSD',
+  'synth curve': 'CRYPTO:CRVUSD',
+  'synth holo': 'CRYPTO:HOTUSD',
+  'synth thorchain': 'CRYPTO:RUNEUSD',
+  'synth dash': 'CRYPTO:DASHUSD',
+  'synth zcash': 'CRYPTO:ZECUSD',
+  'synth qtum': 'CRYPTO:QTUMUSD',
+  'synth omisego': 'CRYPTO:OMGUSD',
+  'synth 0x': 'CRYPTO:ZRXUSD',
+  'synth basic attention token': 'CRYPTO:BATUSD',
+  'synth decentraland': 'CRYPTO:MANAUSD',
+  'synth sand': 'CRYPTO:SANDUSD',
+  'synth the sandbox': 'CRYPTO:SANDUSD',
+  'synth axie infinity': 'CRYPTO:AXSUSD',
+  'synth chiliz': 'CRYPTO:CHZUSD',
+  'synth flow': 'CRYPTO:FLOWUSD',
+  'synth gala': 'CRYPTO:GALAUSD',
+  'synth immutable x': 'CRYPTO:IMXUSD',
+  'synth metis': 'CRYPTO:METISUSD',
+  'synth near': 'CRYPTO:NEARUSD',
+  'synth ocean protocol': 'CRYPTO:OCEANUSD',
+  'synth ocean': 'CRYPTO:OCEANUSD',
+  'synth render token': 'CRYPTO:RNDRUSD',
+  'synth rndr': 'CRYPTO:RNDRUSD',
+  'synth sora': 'CRYPTO:XORUSD'
 }
 
 // Market-related keywords that indicate user wants stock/market information
@@ -220,22 +409,18 @@ export function detectCompanyTicker(text: string): string | null {
   const tickerPatterns = [
     /\$([A-Z]{1,5})\b/,           // $AAPL
     /\b([A-Z]{1,5})\s+(?:stock|share|price|chart)/i,  // AAPL stock/share/price/chart
-    /\b(NYSE|NASDAQ|AMEX):([A-Z.]{1,5})\b/i  // NASDAQ:AAPL
+    /\b(NYSE|NASDAQ|AMEX):([A-Z.]{1,5})\b/i           // NASDAQ:AAPL
   ]
   
   for (const pattern of tickerPatterns) {
     const match = text.match(pattern)
     if (match) {
-      if (pattern.source.includes('NYSE|NASDAQ')) {
-        return match[0].toUpperCase()
-      } else if (match[1]) {
-        const ticker = match[1].toUpperCase()
-        // Validate it's a known ticker
-        const foundTicker = Object.values(companyTickerMap).find(t => t.includes(ticker))
-        if (foundTicker) {
-          return foundTicker
-        }
+      // For the third pattern, ticker is in match[2]
+      if (pattern === tickerPatterns[2]) {
+        return match[2].toUpperCase()
       }
+      // Otherwise, ticker is in match[1]
+      return match[1].toUpperCase()
     }
   }
   
@@ -258,3 +443,6 @@ export function detectCompanyTicker(text: string): string | null {
   
   return null
 }
+
+// Export explícito para asegurar que detectCompanyTicker esté disponible
+export { detectCompanyTicker }
