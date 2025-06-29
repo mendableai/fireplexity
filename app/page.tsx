@@ -3,7 +3,7 @@
 import { useChat } from 'ai/react'
 import { SearchComponent } from './search'
 import { ChatInterface } from './chat-interface'
-import { SearchResult } from './types'
+import { SearchResult, OpenRouterModel } from './types'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -18,6 +18,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { ErrorDisplay } from '@/components/error-display'
+import { Label } from '@/components/ui/label'
+import { Combobox } from "@/components/ui/combobox"
+
 
 interface MessageData {
   sources: SearchResult[]
@@ -34,16 +37,33 @@ export default function FireplexityPage() {
   const [messageData, setMessageData] = useState<Map<number, MessageData>>(new Map())
   const currentMessageIndex = useRef(0)
   const [currentTicker, setCurrentTicker] = useState<string | null>(null)
+
+  // API Key States
   const [firecrawlApiKey, setFirecrawlApiKey] = useState<string>('')
-  const [hasApiKey, setHasApiKey] = useState<boolean>(false)
-  const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false)
-  const [, setIsCheckingEnv] = useState<boolean>(true)
+  const [hasFirecrawlApiKey, setHasFirecrawlApiKey] = useState<boolean>(false)
+  const [showFirecrawlApiKeyModal, setShowFirecrawlApiKeyModal] = useState<boolean>(false)
+
+  const [openRouterApiKey, setOpenRouterApiKey] = useState<string>('')
+  const [hasOpenRouterApiKey, setHasOpenRouterApiKey] = useState<boolean>(false)
+  const [showOpenRouterApiKeyModal, setShowOpenRouterApiKeyModal] = useState<boolean>(false)
+
+  const [isCheckingEnv, setIsCheckingEnv] = useState<boolean>(true)
   const [pendingQuery, setPendingQuery] = useState<string>('')
+
+  // Provider and Model States
+  const [provider, setProvider] = useState<string>('openai') // 'openai' or 'openrouter'
+  const [openRouterModel, setOpenRouterModel] = useState<string>('')
+  const [availableOpenRouterModels, setAvailableOpenRouterModels] = useState<OpenRouterModel[]>([])
+  const [isFetchingModels, setIsFetchingModels] = useState<boolean>(false)
+
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, data } = useChat({
     api: '/api/fireplexity/search',
     body: {
-      ...(firecrawlApiKey && { firecrawlApiKey })
+      provider,
+      ...(provider === 'openrouter' && { openRouterModel }),
+      ...(firecrawlApiKey && { firecrawlApiKey }),
+      ...(provider === 'openrouter' && openRouterApiKey && { openRouterApiKey }),
     },
     onResponse: () => {
       // Clear status when response starts
@@ -59,6 +79,7 @@ export default function FireplexityPage() {
     onError: (error) => {
       console.error('Chat error:', error)
       setSearchStatus('')
+      toast.error(error.message || "An error occurred during the chat.")
     },
     onFinish: () => {
       setSearchStatus('')
@@ -76,7 +97,7 @@ export default function FireplexityPage() {
       newItems.forEach((item) => {
         if (!item || typeof item !== 'object' || !('type' in item)) return
         
-        const typedItem = item as unknown as { type: string; message?: string; sources?: SearchResult[]; questions?: string[]; symbol?: string }
+        const typedItem = item as unknown as { type: string; message?: string; sources?: SearchResult[]; questions?: string[]; symbol?: string, error?: string, suggestion?: string }
         if (typedItem.type === 'status') {
           setSearchStatus(typedItem.message || '')
         }
@@ -104,73 +125,149 @@ export default function FireplexityPage() {
           newMap.set(currentMessageIndex.current, { ...existingData, followUpQuestions: typedItem.questions })
           setMessageData(newMap)
         }
+        if (typedItem.type === 'error') {
+          toast.error(typedItem.error, { description: typedItem.suggestion })
+          setSearchStatus('')
+        }
       })
       
       // Update the last processed length
       lastDataLength.current = data.length
     }
-  }, [data, messageData])
+  }, [data, messageData, messages])
 
 
-  // Check for environment variables on mount
+  // Check for environment variables and stored API keys on mount
   useEffect(() => {
-    const checkApiKey = async () => {
+    const checkApiKeys = async () => {
+      setIsCheckingEnv(true)
       try {
         const response = await fetch('/api/fireplexity/check-env')
         const data = await response.json()
         
         if (data.hasFirecrawlKey) {
-          setHasApiKey(true)
+          setHasFirecrawlApiKey(true)
         } else {
-          // Check localStorage for user's API key
-          const storedKey = localStorage.getItem('firecrawl-api-key')
-          if (storedKey) {
-            setFirecrawlApiKey(storedKey)
-            setHasApiKey(true)
+          const storedFcKey = localStorage.getItem('firecrawl-api-key')
+          if (storedFcKey) {
+            setFirecrawlApiKey(storedFcKey)
+            setHasFirecrawlApiKey(true)
           }
         }
+
+        if (data.hasOpenRouterKey) {
+          setHasOpenRouterApiKey(true)
+        } else {
+          const storedOrKey = localStorage.getItem('openrouter-api-key')
+          if (storedOrKey) {
+            setOpenRouterApiKey(storedOrKey)
+            setHasOpenRouterApiKey(true)
+          }
+        }
+
       } catch (error) {
         console.error('Error checking environment:', error)
+        toast.error("Failed to check API key status.")
       } finally {
         setIsCheckingEnv(false)
       }
     }
     
-    checkApiKey()
+    checkApiKeys()
   }, [])
 
-  const handleApiKeySubmit = () => {
+  // Fetch OpenRouter models when provider is set to openrouter
+  useEffect(() => {
+    const fetchModels = async () => {
+      if (provider === 'openrouter' && availableOpenRouterModels.length === 0) {
+        setIsFetchingModels(true)
+        try {
+          const response = await fetch('/api/openrouter/models')
+          if (!response.ok) {
+            const errorData = await response.json()
+            toast.error('Failed to fetch OpenRouter models', { description: errorData.details?.error?.message || response.statusText })
+            setAvailableOpenRouterModels([])
+            return
+          }
+          const modelData = await response.json()
+          // Sort all models by name
+          const allModels = modelData.data
+            .sort((a: OpenRouterModel, b: OpenRouterModel) => (a.name || a.id).localeCompare(b.name || b.id));
+          setAvailableOpenRouterModels(allModels)
+          if (allModels.length > 0 && !openRouterModel) {
+            setOpenRouterModel(allModels[0].id) // Set default model
+          }
+        } catch (error) {
+          console.error('Error fetching OpenRouter models:', error)
+          toast.error('Error fetching OpenRouter models.')
+          setAvailableOpenRouterModels([])
+        } finally {
+          setIsFetchingModels(false)
+        }
+      }
+    }
+    fetchModels()
+  }, [provider, openRouterModel, availableOpenRouterModels.length])
+
+
+  const handleFirecrawlApiKeySubmit = () => {
     if (firecrawlApiKey.trim()) {
       localStorage.setItem('firecrawl-api-key', firecrawlApiKey)
-      setHasApiKey(true)
-      setShowApiKeyModal(false)
-      toast.success('API key saved successfully!')
+      setHasFirecrawlApiKey(true)
+      setShowFirecrawlApiKeyModal(false)
+      toast.success('Firecrawl API key saved!')
       
-      // If there's a pending query, submit it
       if (pendingQuery) {
-        const fakeEvent = {
-          preventDefault: () => {},
-          currentTarget: {
-            querySelector: () => ({ value: pendingQuery })
-          }
-        } as any
-        handleInputChange({ target: { value: pendingQuery } } as any)
-        setTimeout(() => {
-          handleSubmit(fakeEvent)
-          setPendingQuery('')
-        }, 100)
+        triggerPendingQuery()
       }
     }
   }
 
+  const handleOpenRouterApiKeySubmit = () => {
+    if (openRouterApiKey.trim()) {
+      localStorage.setItem('openrouter-api-key', openRouterApiKey)
+      setHasOpenRouterApiKey(true)
+      setShowOpenRouterApiKeyModal(false)
+      toast.success('OpenRouter API key saved!')
+
+      if (pendingQuery) {
+        triggerPendingQuery()
+      }
+    }
+  }
+
+  const triggerPendingQuery = () => {
+    if (pendingQuery) {
+      const fakeEvent = {
+        preventDefault: () => {},
+        currentTarget: {
+          querySelector: () => ({ value: pendingQuery })
+        }
+      } as any
+      handleInputChange({ target: { value: pendingQuery } } as any)
+      setTimeout(() => {
+        handleSubmit(fakeEvent)
+        setPendingQuery('')
+      }, 100)
+    }
+  }
+
+
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!input.trim()) return
+    if (!input.trim() || isLoading) return
     
-    // Check if we have an API key
-    if (!hasApiKey) {
+    // Check for Firecrawl API key
+    if (!hasFirecrawlApiKey) {
       setPendingQuery(input)
-      setShowApiKeyModal(true)
+      setShowFirecrawlApiKeyModal(true)
+      return
+    }
+
+    // Check for OpenRouter API key if provider is openrouter
+    if (provider === 'openrouter' && !hasOpenRouterApiKey) {
+      setPendingQuery(input)
+      setShowOpenRouterApiKeyModal(true)
       return
     }
     
@@ -184,16 +281,28 @@ export default function FireplexityPage() {
   
   // Wrapped submit handler for chat interface
   const handleChatSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    // Check if we have an API key
-    if (!hasApiKey) {
+    if (isLoading) {
+      e.preventDefault()
+      return
+    }
+    // Check for Firecrawl API key
+    if (!hasFirecrawlApiKey) {
       setPendingQuery(input)
-      setShowApiKeyModal(true)
+      setShowFirecrawlApiKeyModal(true)
+      e.preventDefault()
+      return
+    }
+
+    // Check for OpenRouter API key if provider is openrouter
+    if (provider === 'openrouter' && !hasOpenRouterApiKey) {
+      setPendingQuery(input)
+      setShowOpenRouterApiKeyModal(true)
       e.preventDefault()
       return
     }
     
     // Store current data in messageData before clearing
-    if (messages.length > 0 && sources.length > 0) {
+    if (messages.length > 0 && (sources.length > 0 || followUpQuestions.length > 0 || currentTicker)) {
       const assistantMessages = messages.filter(m => m.role === 'assistant')
       const lastAssistantIndex = assistantMessages.length - 1
       if (lastAssistantIndex >= 0) {
@@ -265,10 +374,63 @@ export default function FireplexityPage() {
             </span>
           </h1>
           <p className="mt-3 text-lg text-zinc-600 dark:text-zinc-400 opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:600ms] [animation-fill-mode:forwards]">
-            AI-powered web search with instant results and follow-up questions
+            AI-powered web search with instant results and follow-up questions. Now with OpenRouter support!
           </p>
         </div>
       </div>
+
+      {/* Configuration Section - Only show before first search */}
+      {!isChatActive && (
+        <div className="px-4 sm:px-6 lg:px-8 pb-8">
+          <div className="max-w-2xl mx-auto p-6 bg-gray-50 rounded-lg shadow-md border border-gray-200">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">Configuration</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="provider-select" className="text-gray-700">LLM Provider</Label>
+                <Combobox
+                  options={[
+                    { value: "openai", label: "OpenAI" },
+                    { value: "openrouter", label: "OpenRouter" },
+                  ]}
+                  value={provider}
+                  onChange={setProvider}
+                  placeholder="Select Provider"
+                  searchPlaceholder="Search providers..."
+                  emptyStateMessage="No provider found."
+                />
+              </div>
+
+              {provider === 'openrouter' && (
+                <div>
+                  <Label htmlFor="openrouter-model-select" className="text-gray-700">OpenRouter Model</Label>
+                  <Combobox
+                    options={availableOpenRouterModels.map(model => ({ value: model.id, label: model.name || model.id }))}
+                    value={openRouterModel}
+                    onChange={setOpenRouterModel}
+                    placeholder={isFetchingModels ? "Loading models..." : "Select Model"}
+                    searchPlaceholder="Search models..."
+                    emptyStateMessage={isFetchingModels ? "Loading..." : (availableOpenRouterModels.length === 0 ? "No models found or failed to load" : "No model found.")}
+                    disabled={isFetchingModels || availableOpenRouterModels.length === 0}
+                  />
+                  {!hasOpenRouterApiKey && (
+                    <Button variant="link" size="sm" className="mt-1 px-0 text-orange-600 hover:text-orange-700" onClick={() => setShowOpenRouterApiKeyModal(true)}>
+                      Set OpenRouter API Key
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+            {!hasFirecrawlApiKey && (
+                <div className="mt-4">
+                    <Button variant="link" size="sm" className="px-0 text-orange-600 hover:text-orange-700" onClick={() => setShowFirecrawlApiKeyModal(true)}>
+                      Set Firecrawl API Key
+                    </Button>
+                </div>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* Main content wrapper */}
       <div className="flex-1 px-4 sm:px-6 lg:px-8">
@@ -278,7 +440,8 @@ export default function FireplexityPage() {
               handleSubmit={handleSearch}
               input={input}
               handleInputChange={handleInputChange}
-              isLoading={isLoading}
+              isLoading={isLoading || isCheckingEnv || (provider === 'openrouter' && isFetchingModels)}
+              disabled={isCheckingEnv || (provider === 'openrouter' && isFetchingModels)}
             />
           ) : (
             <ChatInterface 
@@ -314,8 +477,8 @@ export default function FireplexityPage() {
         </div>
       </footer>
       
-      {/* API Key Modal */}
-      <Dialog open={showApiKeyModal} onOpenChange={setShowApiKeyModal}>
+      {/* Firecrawl API Key Modal */}
+      <Dialog open={showFirecrawlApiKeyModal} onOpenChange={setShowFirecrawlApiKeyModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Firecrawl API Key Required</DialogTitle>
@@ -333,19 +496,58 @@ export default function FireplexityPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <Input
+              id="firecrawlApiKeyInput"
               placeholder="Enter your Firecrawl API key"
               value={firecrawlApiKey}
               onChange={(e) => setFirecrawlApiKey(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  handleApiKeySubmit()
+                  handleFirecrawlApiKeySubmit()
                 }
               }}
               className="h-12"
             />
-            <Button onClick={handleApiKeySubmit} variant="orange" className="w-full">
-              Save API Key
+            <Button onClick={handleFirecrawlApiKeySubmit} variant="orange" className="w-full">
+              Save Firecrawl API Key
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* OpenRouter API Key Modal */}
+      <Dialog open={showOpenRouterApiKeyModal} onOpenChange={setShowOpenRouterApiKeyModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>OpenRouter API Key Required</DialogTitle>
+            <DialogDescription>
+              To use the OpenRouter provider, you need an OpenRouter API key. Get one from{' '}
+              <a
+                href="https://openrouter.ai/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-orange-600 hover:text-orange-700 underline"
+              >
+                openrouter.ai
+              </a>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Input
+              id="openRouterApiKeyInput"
+              placeholder="Enter your OpenRouter API key"
+              value={openRouterApiKey}
+              onChange={(e) => setOpenRouterApiKey(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleOpenRouterApiKeySubmit()
+                }
+              }}
+              className="h-12"
+            />
+            <Button onClick={handleOpenRouterApiKeySubmit} variant="orange" className="w-full">
+              Save OpenRouter API Key
             </Button>
           </div>
         </DialogContent>
