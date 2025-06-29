@@ -117,7 +117,7 @@ export default function DashboardPage() {
               Welcome, {user.firstName || user.email}
             </span>
             <Button asChild variant="ghost" size="sm">
-              <Link href="/api/auth/signout">Sign Out</Link>
+              <a href="/api/auth/signout">Sign Out</a>
             </Button>
           </div>
         </div>

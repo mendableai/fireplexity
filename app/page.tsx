@@ -2,8 +2,18 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import Image from 'next/image'
 import { SUBSCRIPTION_TIERS } from '@/lib/polar'
+import { withAuth } from '@workos-inc/authkit-nextjs'
+import { redirect } from 'next/navigation'
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Check if user is authenticated
+  const { user } = await withAuth()
+  
+  // If authenticated, redirect to dashboard
+  if (user) {
+    redirect('/dashboard')
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="px-4 sm:px-6 lg:px-8 py-1 mt-2">
@@ -19,10 +29,10 @@ export default function LandingPage() {
           </Link>
           <div className="flex items-center gap-4">
             <Button asChild variant="ghost">
-              <Link href="/api/auth/signin">Sign In</Link>
+              <a href="/api/auth/signin">Sign In</a>
             </Button>
             <Button asChild variant="orange">
-              <Link href="/api/auth/signin">Get Started</Link>
+              <a href="/api/auth/signin">Get Started</a>
             </Button>
           </div>
         </div>
@@ -44,7 +54,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:800ms] [animation-fill-mode:forwards]">
             <Button asChild size="lg" variant="orange" className="text-lg px-8 py-3">
-              <Link href="/api/auth/signin">Start Searching Free</Link>
+              <a href="/api/auth/signin">Start Searching Free</a>
             </Button>
             <Button asChild size="lg" variant="outline" className="text-lg px-8 py-3">
               <Link href="#features">Learn More</Link>
@@ -135,7 +145,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/api/auth/signin">Get Started Free</Link>
+                <a href="/api/auth/signin">Get Started Free</a>
               </Button>
             </div>
             
@@ -163,7 +173,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Button asChild variant="orange" className="w-full">
-                <Link href="/api/auth/signin">Upgrade to Pro</Link>
+                <a href="/api/auth/signin">Upgrade to Pro</a>
               </Button>
             </div>
           </div>

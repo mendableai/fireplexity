@@ -1,9 +1,6 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { authkitMiddleware } from '@workos-inc/authkit-nextjs';
 
-export function middleware(request: NextRequest) {
-  return NextResponse.next();
-}
+export default authkitMiddleware();
 
 export const config = {
   matcher: [
