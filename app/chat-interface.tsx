@@ -262,7 +262,13 @@ export function ChatInterface({ messages, sources, followUpQuestions, searchStat
                                         )}
                                       </div>
                                       <p className="text-[10px] text-gray-600 dark:text-gray-300 truncate flex-1 font-medium">
-                                        {result.siteName || new URL(result.url).hostname.replace('www.', '')}
+                                        {result.siteName || (() => {
+                                          try {
+                                            return new URL(result.url).hostname.replace('www.', '');
+                                          } catch {
+                                            return 'Unknown source';
+                                          }
+                                        })()}
                                       </p>
                                     </div>
                                     
