@@ -88,20 +88,38 @@ export const updateUserSubscription = mutation({
 export const incrementSearchCount = mutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user) throw new Error("User not found");
-
     const today = new Date().toISOString().split('T')[0];
-    const currentSearches = user.searchesUsedToday || 0;
-    const searchesUsedToday = user.lastSearchDate === today ? currentSearches + 1 : 1;
+    
+    let retries = 0;
+    const maxRetries = 5;
+    
+    while (retries < maxRetries) {
+      try {
+        const user = await ctx.db.get(args.userId);
+        if (!user) throw new Error("User not found");
 
-    await ctx.db.patch(args.userId, {
-      searchesUsedToday,
-      lastSearchDate: today,
-      updatedAt: Date.now(),
-    });
+        const currentSearches = user.searchesUsedToday || 0;
+        const searchesUsedToday = user.lastSearchDate === today ? currentSearches + 1 : 1;
 
-    return searchesUsedToday;
+        await ctx.db.patch(args.userId, {
+          searchesUsedToday,
+          lastSearchDate: today,
+          updatedAt: Date.now(),
+        });
+
+        return searchesUsedToday;
+      } catch (error: any) {
+        if (error.code === "OptimisticConcurrencyControlFailure" && retries < maxRetries - 1) {
+          retries++;
+          const delay = Math.random() * Math.pow(2, retries) * 10;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw error;
+      }
+    }
+    
+    throw new Error("Failed to increment search count after maximum retries");
   },
 });
 
