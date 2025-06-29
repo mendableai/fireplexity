@@ -194,6 +194,18 @@ export default function SearchPage() {
     // Increment search count
     try {
       await incrementSearchCount({ userId: convexUserId as Id<"users"> })
+      
+      // Report usage to Polar for Pro users
+      if (getUserByWorkosId?.subscriptionTier === 'pro' && getUserByWorkosId?.polarCustomerId) {
+        fetch('/api/report-usage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerId: getUserByWorkosId.polarCustomerId,
+            eventData: { query: input.trim() }
+          })
+        }).catch(err => console.error('Failed to report usage:', err))
+      }
     } catch (error) {
       console.error('Failed to increment search count:', error)
     }

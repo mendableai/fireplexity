@@ -16,8 +16,13 @@ export default defineSchema({
     )),
     polarCustomerId: v.optional(v.string()),
     polarSubscriptionId: v.optional(v.string()),
+    // Daily tracking for free tier
     searchesUsedToday: v.optional(v.number()),
     lastSearchDate: v.optional(v.string()),
+    // Meter-based billing tracking for pro tier
+    monthlySearchCredits: v.optional(v.number()), // Total credits for the month
+    searchCreditsUsed: v.optional(v.number()), // Credits used this month
+    creditsResetDate: v.optional(v.string()), // When credits reset (ISO date)
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   })

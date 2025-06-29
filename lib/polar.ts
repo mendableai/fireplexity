@@ -15,7 +15,10 @@ export const SUBSCRIPTION_TIERS = {
   PRO: {
     name: 'Pro',
     price: 9.99,
-    searches_per_day: -1, // unlimited
-    features: ['Unlimited searches', 'Advanced AI responses', 'Source citations', 'Search history', 'Priority support'],
+    searches_per_month: 500, // 500 searches per month via credits
+    features: ['500 searches per month', 'Advanced AI responses', 'Source citations', 'Search history', 'Priority support'],
   },
 } as const;
+
+// Polar meter ID for search usage tracking
+export const POLAR_SEARCH_METER_ID = process.env.POLAR_SEARCH_METER_ID || '';

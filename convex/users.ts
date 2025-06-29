@@ -75,13 +75,22 @@ export const updateUserSubscription = mutation({
     polarSubscriptionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.userId, {
+    const updates: any = {
       subscriptionTier: args.subscriptionTier,
       subscriptionStatus: args.subscriptionStatus,
       polarCustomerId: args.polarCustomerId,
       polarSubscriptionId: args.polarSubscriptionId,
       updatedAt: Date.now(),
-    });
+    };
+    
+    // If upgrading to Pro, set up monthly credits
+    if (args.subscriptionTier === "pro" && args.subscriptionStatus === "active") {
+      updates.monthlySearchCredits = 500;
+      updates.searchCreditsUsed = 0;
+      updates.creditsResetDate = new Date().toISOString();
+    }
+    
+    await ctx.db.patch(args.userId, updates);
   },
 });
 
@@ -89,6 +98,7 @@ export const incrementSearchCount = mutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     const today = new Date().toISOString().split('T')[0];
+    const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
     
     let retries = 0;
     const maxRetries = 5;
@@ -98,6 +108,21 @@ export const incrementSearchCount = mutation({
         const user = await ctx.db.get(args.userId);
         if (!user) throw new Error("User not found");
 
+        // For Pro users, track monthly credits
+        if (user.subscriptionTier === "pro" && user.subscriptionStatus === "active") {
+          const creditsMonth = user.creditsResetDate?.substring(0, 7);
+          const creditsUsed = creditsMonth === currentMonth ? (user.searchCreditsUsed || 0) + 1 : 1;
+          
+          await ctx.db.patch(args.userId, {
+            searchCreditsUsed: creditsUsed,
+            creditsResetDate: creditsMonth === currentMonth ? user.creditsResetDate : today,
+            updatedAt: Date.now(),
+          });
+
+          return creditsUsed;
+        }
+
+        // For Free users, track daily usage
         const currentSearches = user.searchesUsedToday || 0;
         const searchesUsedToday = user.lastSearchDate === today ? currentSearches + 1 : 1;
 
@@ -129,10 +154,17 @@ export const canUserSearch = query({
     const user = await ctx.db.get(args.userId);
     if (!user) return false;
 
+    // Pro users: check monthly credits
     if (user.subscriptionTier === "pro" && user.subscriptionStatus === "active") {
-      return true;
+      const currentMonth = new Date().toISOString().substring(0, 7);
+      const creditsMonth = user.creditsResetDate?.substring(0, 7);
+      const creditsUsed = creditsMonth === currentMonth ? (user.searchCreditsUsed || 0) : 0;
+      const monthlyLimit = user.monthlySearchCredits || 500;
+      
+      return creditsUsed < monthlyLimit;
     }
 
+    // Free users: check daily limit
     const today = new Date().toISOString().split('T')[0];
     const currentSearches = user.searchesUsedToday || 0;
     const searchesUsedToday = user.lastSearchDate === today ? currentSearches : 0;

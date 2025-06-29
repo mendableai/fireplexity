@@ -141,9 +141,24 @@ export default function DashboardPage() {
 
   const currentTier = userData?.subscriptionTier || 'free'
   const isProUser = currentTier === 'pro' && userData?.subscriptionStatus === 'active'
-  const searchesUsed = userData?.searchesUsedToday || 0
-  const searchLimit = isProUser ? -1 : SUBSCRIPTION_TIERS.FREE.searches_per_day
-  const canSearch = isProUser || searchesUsed < searchLimit
+  
+  let searchesUsed = 0
+  let searchLimit = SUBSCRIPTION_TIERS.FREE.searches_per_day
+  let periodLabel = 'Today'
+  
+  if (isProUser) {
+    // Pro users: monthly credits
+    const currentMonth = new Date().toISOString().substring(0, 7)
+    const creditsMonth = userData?.creditsResetDate?.substring(0, 7)
+    searchesUsed = creditsMonth === currentMonth ? (userData?.searchCreditsUsed || 0) : 0
+    searchLimit = userData?.monthlySearchCredits || SUBSCRIPTION_TIERS.PRO.searches_per_month
+    periodLabel = 'This Month'
+  } else {
+    // Free users: daily limit
+    searchesUsed = userData?.searchesUsedToday || 0
+  }
+  
+  const canSearch = searchesUsed < searchLimit
 
   return (
     <div className="flex flex-col">
@@ -216,17 +231,15 @@ export default function DashboardPage() {
                   <div className="space-y-4">
                     <div>
                       <div className="flex justify-between text-sm mb-1">
-                        <span>Searches Today</span>
-                        <span>{searchesUsed}{searchLimit > 0 ? ` / ${searchLimit}` : ''}</span>
+                        <span>Searches {periodLabel}</span>
+                        <span>{searchesUsed} / {searchLimit}</span>
                       </div>
-                      {searchLimit > 0 && (
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div 
-                            className="bg-orange-600 h-2 rounded-full transition-all duration-300" 
-                            style={{ width: `${Math.min((searchesUsed / searchLimit) * 100, 100)}%` }}
-                          ></div>
-                        </div>
-                      )}
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="bg-orange-600 h-2 rounded-full transition-all duration-300" 
+                          style={{ width: `${Math.min((searchesUsed / searchLimit) * 100, 100)}%` }}
+                        ></div>
+                      </div>
                     </div>
                     
                     <div className="pt-4 border-t border-gray-200 dark:border-gray-700">

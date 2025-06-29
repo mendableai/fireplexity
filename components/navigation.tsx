@@ -5,6 +5,9 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
 import { Home, Search, CreditCard, LogOut, Menu, X } from 'lucide-react'
+import { useQuery } from 'convex/react'
+import { api } from '@/convex/_generated/api'
+import { SUBSCRIPTION_TIERS } from '@/lib/polar'
 
 interface User {
   id: string
@@ -17,6 +20,10 @@ export function Navigation() {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  const userData = useQuery(api.users.getUserByWorkosId, 
+    user ? { workosId: user.id } : 'skip'
+  )
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -41,6 +48,24 @@ export function Navigation() {
     { href: '/search', label: 'Search', icon: Search },
     { href: '/dashboard#subscription', label: 'Subscription', icon: CreditCard },
   ] : []
+
+  // Calculate credits display
+  const isProUser = userData?.subscriptionTier === 'pro' && userData?.subscriptionStatus === 'active'
+  
+  let creditsRemaining: number | string = 0
+  if (isProUser) {
+    // Pro users: monthly credits
+    const currentMonth = new Date().toISOString().substring(0, 7)
+    const creditsMonth = userData?.creditsResetDate?.substring(0, 7)
+    const creditsUsed = creditsMonth === currentMonth ? (userData?.searchCreditsUsed || 0) : 0
+    const monthlyLimit = userData?.monthlySearchCredits || 500
+    creditsRemaining = Math.max(0, monthlyLimit - creditsUsed)
+  } else {
+    // Free users: daily limit
+    const searchesUsed = userData?.searchesUsedToday || 0
+    const searchLimit = SUBSCRIPTION_TIERS.FREE.searches_per_day
+    creditsRemaining = Math.max(0, searchLimit - searchesUsed)
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -75,6 +100,24 @@ export function Navigation() {
               <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
             ) : user ? (
               <>
+                {userData && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Credits:
+                    </span>
+                    <span className={`text-sm font-bold ${
+                      isProUser 
+                        ? 'text-orange-600 dark:text-orange-400' 
+                        : Number(creditsRemaining) > 100 
+                          ? 'text-green-600 dark:text-green-400'
+                          : Number(creditsRemaining) > 0
+                            ? 'text-yellow-600 dark:text-yellow-400'
+                            : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {creditsRemaining}
+                    </span>
+                  </div>
+                )}
                 <span className="text-sm text-gray-600 dark:text-gray-400">
                   {user.firstName || user.email?.split('@')[0]}
                 </span>
@@ -125,6 +168,24 @@ export function Navigation() {
               <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
                 {user ? (
                   <>
+                    {userData && (
+                      <div className="mx-3 mb-2 flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Credits:
+                        </span>
+                        <span className={`text-sm font-bold ${
+                          isProUser 
+                            ? 'text-orange-600 dark:text-orange-400' 
+                            : Number(creditsRemaining) > 100 
+                              ? 'text-green-600 dark:text-green-400'
+                              : Number(creditsRemaining) > 0
+                                ? 'text-yellow-600 dark:text-yellow-400'
+                                : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {creditsRemaining}
+                        </span>
+                      </div>
+                    )}
                     <div className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">
                       {user.firstName || user.email?.split('@')[0]}
                     </div>
