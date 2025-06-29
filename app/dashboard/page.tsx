@@ -6,8 +6,9 @@ import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
-import Image from 'next/image'
 import { SUBSCRIPTION_TIERS } from '@/lib/polar'
+import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 
 interface User {
   id: string
@@ -17,6 +18,7 @@ interface User {
 }
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams()
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreatingUser, setIsCreatingUser] = useState(false)
@@ -26,6 +28,7 @@ export default function DashboardPage() {
   )
   
   const createUser = useMutation(api.users.createUser)
+  const updateUser = useMutation(api.users.updateUserSubscription)
   
   useEffect(() => {
     const checkAuth = async () => {
@@ -58,6 +61,28 @@ export default function DashboardPage() {
     }
   }, [user, userData, createUser, isCreatingUser])
 
+  // Handle successful checkout
+  useEffect(() => {
+    const checkoutStatus = searchParams.get('checkout')
+    const customerToken = searchParams.get('customer_session_token')
+    
+    if (checkoutStatus === 'success' && customerToken && userData) {
+      // Update user to pro subscription
+      updateUser({
+        userId: userData._id,
+        subscriptionTier: 'pro',
+        subscriptionStatus: 'active',
+      }).then(() => {
+        toast.success('Welcome to Pro! Your subscription is now active.')
+        // Remove query params from URL
+        window.history.replaceState({}, '', '/dashboard')
+      }).catch((error) => {
+        console.error('Failed to update subscription:', error)
+        toast.error('Failed to activate subscription. Please contact support.')
+      })
+    }
+  }, [searchParams, userData, updateUser])
+
   const handleUpgrade = async () => {
     try {
       const response = await fetch('/api/checkout', {
@@ -68,25 +93,46 @@ export default function DashboardPage() {
         body: JSON.stringify({ tier: 'pro' }),
       })
       
-      const data = await response.json()
+      let data;
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json()
+      } else {
+        const text = await response.text()
+        console.error('Non-JSON response:', text)
+        alert('Server error: Invalid response format')
+        return
+      }
+      
+      if (!response.ok) {
+        console.error('Checkout error:', response.status, data)
+        alert(`Error: ${data?.error || 'Failed to create checkout session'}`)
+        return
+      }
+      
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl
+      } else {
+        console.error('No checkout URL in response:', data)
+        alert('No checkout URL received')
       }
     } catch (error) {
       console.error('Error creating checkout session:', error)
+      alert('Failed to create checkout session. Please try again.')
     }
   }
 
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
             Please sign in to continue
           </h1>
           <Button asChild variant="orange">
-            <Link href="/api/auth/signin">Sign In</Link>
+            <a href="/api/auth/signin">Sign In</a>
           </Button>
         </div>
       </div>
@@ -100,30 +146,8 @@ export default function DashboardPage() {
   const canSearch = isProUser || searchesUsed < searchLimit
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="px-4 sm:px-6 lg:px-8 py-1 mt-2 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/dashboard">
-            <Image 
-              src="/firecrawl-logo-with-fire.png" 
-              alt="Firecrawl Logo" 
-              width={113} 
-              height={24}
-              className="w-[113px] h-auto"
-            />
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Welcome, {user.firstName || user.email}
-            </span>
-            <Button asChild variant="ghost" size="sm">
-              <a href="/api/auth/signout">Sign Out</a>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
+    <div className="flex flex-col">
+      <div className="px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-semibold text-gray-900 dark:text-white mb-2">
@@ -183,7 +207,7 @@ export default function DashboardPage() {
               </Card>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-6" id="subscription">
               <Card>
                 <CardHeader>
                   <CardTitle>Usage Stats</CardTitle>

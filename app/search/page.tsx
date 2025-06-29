@@ -2,21 +2,15 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useChat } from 'ai/react'
+import { useQuery, useMutation } from 'convex/react'
+import { api } from '@/convex/_generated/api'
+import { Id } from '@/convex/_generated/dataModel'
 import { SearchComponent } from '../search'
 import { ChatInterface } from '../chat-interface'
 import { SearchResult } from '../types'
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
-import Image from 'next/image'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { ConversationSidebar } from '@/components/conversation-sidebar'
 import { toast } from "sonner"
+import { useRouter } from 'next/navigation'
 
 interface MessageData {
   sources: SearchResult[]
@@ -24,7 +18,18 @@ interface MessageData {
   ticker?: string
 }
 
+interface User {
+  id: string
+  email: string
+  firstName?: string
+  lastName?: string
+}
+
 export default function SearchPage() {
+  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [convexUserId, setConvexUserId] = useState<string | null>(null)
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [sources, setSources] = useState<SearchResult[]>([])
   const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([])
   const [searchStatus, setSearchStatus] = useState('')
@@ -33,17 +38,70 @@ export default function SearchPage() {
   const [messageData, setMessageData] = useState<Map<number, MessageData>>(new Map())
   const currentMessageIndex = useRef(0)
   const [currentTicker, setCurrentTicker] = useState<string | null>(null)
-  const [firecrawlApiKey, setFirecrawlApiKey] = useState<string>('')
-  const [hasApiKey, setHasApiKey] = useState<boolean>(false)
-  const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false)
-  const [, setIsCheckingEnv] = useState<boolean>(true)
-  const [pendingQuery, setPendingQuery] = useState<string>('')
+  
+  // Convex mutations
+  const createUser = useMutation(api.users.createUser)
+  const getUserByWorkosId = useQuery(api.users.getUserByWorkosId, 
+    user ? { workosId: user.id } : 'skip'
+  )
+  const createConversation = useMutation(api.conversations.createConversation)
+  const addMessage = useMutation(api.conversations.addMessage)
+  const currentConversation = useQuery(
+    api.conversations.getConversation,
+    currentConversationId ? { conversationId: currentConversationId as Id<"conversations"> } : 'skip'
+  )
+  const incrementSearchCount = useMutation(api.users.incrementSearchCount)
+  const canUserSearch = useQuery(api.users.canUserSearch,
+    convexUserId ? { userId: convexUserId as Id<"users"> } : 'skip'
+  )
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, data } = useChat({
+  // Auth check
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me')
+        if (response.ok) {
+          const userData = await response.json()
+          setUser(userData.user)
+        } else {
+          router.push('/api/auth/signin')
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error)
+        router.push('/api/auth/signin')
+      }
+    }
+    
+    checkAuth()
+  }, [router])
+
+  // Create or get Convex user
+  useEffect(() => {
+    const setupConvexUser = async () => {
+      if (!user) return
+      
+      if (getUserByWorkosId === null) {
+        // User doesn't exist in Convex, create them
+        try {
+          await createUser({
+            workosId: user.id,
+            email: user.email,
+            name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : undefined,
+          })
+        } catch (error) {
+          console.error('Failed to create user in Convex:', error)
+        }
+      } else if (getUserByWorkosId) {
+        // User exists, set their Convex ID
+        setConvexUserId(getUserByWorkosId._id)
+      }
+    }
+    
+    setupConvexUser()
+  }, [user, getUserByWorkosId, createUser])
+
+  const { messages, input, handleInputChange, handleSubmit, isLoading, data, setMessages } = useChat({
     api: '/api/fireplexity/search',
-    body: {
-      ...(firecrawlApiKey && { firecrawlApiKey })
-    },
     onResponse: () => {
       setSearchStatus('')
       setSources([])
@@ -55,13 +113,31 @@ export default function SearchPage() {
     onError: (error) => {
       console.error('Chat error:', error)
       setSearchStatus('')
+      toast.error('Failed to search. Please try again.')
     },
-    onFinish: () => {
+    onFinish: async (message) => {
       setSearchStatus('')
       lastDataLength.current = 0
+      
+      // Save assistant message to Convex
+      if (convexUserId && currentConversationId && message.role === 'assistant') {
+        try {
+          await addMessage({
+            conversationId: currentConversationId as Id<"conversations">,
+            userId: convexUserId as Id<"users">,
+            role: 'assistant',
+            content: message.content,
+            sources: sources.length > 0 ? sources : undefined,
+            followUpQuestions: followUpQuestions.length > 0 ? followUpQuestions : undefined,
+          })
+        } catch (error) {
+          console.error('Failed to save message:', error)
+        }
+      }
     }
   })
 
+  // Parse streaming data
   useEffect(() => {
     if (data && Array.isArray(data)) {
       const newItems = data.slice(lastDataLength.current)
@@ -100,61 +176,13 @@ export default function SearchPage() {
     }
   }, [data, messageData])
 
-  useEffect(() => {
-    const checkApiKey = async () => {
-      try {
-        const response = await fetch('/api/fireplexity/check-env')
-        const data = await response.json()
-        
-        if (data.hasFirecrawlKey) {
-          setHasApiKey(true)
-        } else {
-          const storedKey = localStorage.getItem('firecrawl-api-key')
-          if (storedKey) {
-            setFirecrawlApiKey(storedKey)
-            setHasApiKey(true)
-          }
-        }
-      } catch (error) {
-        console.error('Error checking environment:', error)
-      } finally {
-        setIsCheckingEnv(false)
-      }
-    }
-    
-    checkApiKey()
-  }, [])
-
-  const handleApiKeySubmit = () => {
-    if (firecrawlApiKey.trim()) {
-      localStorage.setItem('firecrawl-api-key', firecrawlApiKey)
-      setHasApiKey(true)
-      setShowApiKeyModal(false)
-      toast.success('API key saved successfully!')
-      
-      if (pendingQuery) {
-        const fakeEvent = {
-          preventDefault: () => {},
-          currentTarget: {
-            querySelector: () => ({ value: pendingQuery })
-          }
-        } as any
-        handleInputChange({ target: { value: pendingQuery } } as any)
-        setTimeout(() => {
-          handleSubmit(fakeEvent)
-          setPendingQuery('')
-        }, 100)
-      }
-    }
-  }
-
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!input.trim()) return
+    if (!input.trim() || !convexUserId) return
     
-    if (!hasApiKey) {
-      setPendingQuery(input)
-      setShowApiKeyModal(true)
+    // Check if user can search
+    if (canUserSearch === false) {
+      toast.error('You have reached your daily search limit. Please upgrade to Pro for unlimited searches.')
       return
     }
     
@@ -162,17 +190,54 @@ export default function SearchPage() {
     setSources([])
     setFollowUpQuestions([])
     setCurrentTicker(null)
+    
+    // Increment search count
+    try {
+      await incrementSearchCount({ userId: convexUserId as Id<"users"> })
+    } catch (error) {
+      console.error('Failed to increment search count:', error)
+    }
+    
+    // Create new conversation if needed
+    if (!currentConversationId) {
+      try {
+        const conversationId = await createConversation({
+          userId: convexUserId as Id<"users">,
+          title: input.trim().substring(0, 50),
+          firstMessage: input.trim(),
+        })
+        setCurrentConversationId(conversationId)
+      } catch (error) {
+        console.error('Failed to create conversation:', error)
+        toast.error('Failed to save conversation')
+      }
+    } else {
+      // Save user message to existing conversation
+      try {
+        await addMessage({
+          conversationId: currentConversationId as Id<"conversations">,
+          userId: convexUserId as Id<"users">,
+          role: 'user',
+          content: input.trim(),
+        })
+      } catch (error) {
+        console.error('Failed to save message:', error)
+      }
+    }
+    
     handleSubmit(e)
   }
   
-  const handleChatSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (!hasApiKey) {
-      setPendingQuery(input)
-      setShowApiKeyModal(true)
-      e.preventDefault()
+  const handleChatSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    if (!convexUserId || !currentConversationId) return
+    
+    // Check if user can search
+    if (canUserSearch === false) {
+      toast.error('You have reached your daily search limit. Please upgrade to Pro for unlimited searches.')
       return
     }
     
+    // Save current state for last message
     if (messages.length > 0 && sources.length > 0) {
       const assistantMessages = messages.filter(m => m.role === 'assistant')
       const lastAssistantIndex = assistantMessages.length - 1
@@ -187,139 +252,122 @@ export default function SearchPage() {
       }
     }
     
+    // Increment search count
+    try {
+      await incrementSearchCount({ userId: convexUserId as Id<"users"> })
+    } catch (error) {
+      console.error('Failed to increment search count:', error)
+    }
+    
+    // Save user message to Convex
+    try {
+      await addMessage({
+        conversationId: currentConversationId as Id<"conversations">,
+        userId: convexUserId as Id<"users">,
+        role: 'user',
+        content: input.trim(),
+      })
+    } catch (error) {
+      console.error('Failed to save message:', error)
+    }
+    
     setSources([])
     setFollowUpQuestions([])
     setCurrentTicker(null)
     handleSubmit(e)
   }
 
+  const handleSelectConversation = (conversationId: string) => {
+    setCurrentConversationId(conversationId)
+    // Load conversation messages
+    if (currentConversation) {
+      const chatMessages = currentConversation.messages.map(msg => ({
+        id: msg._id,
+        role: msg.role,
+        content: msg.content,
+      }))
+      setMessages(chatMessages)
+      setHasSearched(true)
+      
+      // Restore message data
+      const newMessageData = new Map<number, MessageData>()
+      currentConversation.messages.forEach((msg, index) => {
+        if (msg.role === 'assistant' && (msg.sources || msg.followUpQuestions)) {
+          newMessageData.set(Math.floor(index / 2), {
+            sources: msg.sources || [],
+            followUpQuestions: msg.followUpQuestions || [],
+          })
+        }
+      })
+      setMessageData(newMessageData)
+    }
+  }
+
+  const handleNewConversation = () => {
+    setCurrentConversationId(null)
+    setMessages([])
+    setHasSearched(false)
+    setSources([])
+    setFollowUpQuestions([])
+    setCurrentTicker(null)
+    setMessageData(new Map())
+  }
+
   const isChatActive = hasSearched || messages.length > 0
 
+  if (!user || !convexUserId) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>
+  }
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="px-4 sm:px-6 lg:px-8 py-1 mt-2">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <Image 
-              src="/firecrawl-logo-with-fire.png" 
-              alt="Firecrawl Logo" 
-              width={113} 
-              height={24}
-              className="w-[113px] h-auto"
-            />
-          </Link>
-          <Button
-            asChild
-            variant="code"
-            className="font-medium flex items-center gap-2"
-          >
-            <a 
-              href="https://github.com/mendableai/fireplexity" 
-              target="_blank" 
-              rel="noopener noreferrer"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-              </svg>
-              Use this template
-            </a>
-          </Button>
-        </div>
-      </header>
-
-      <div className={`px-4 sm:px-6 lg:px-8 pt-2 pb-4 transition-all duration-500 ${isChatActive ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100'}`}>
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-[2.5rem] lg:text-[3.8rem] text-[#36322F] dark:text-white font-semibold tracking-tight leading-[1.1] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:200ms] [animation-fill-mode:forwards]">
-            <span className="relative px-1 pb-1 text-transparent bg-clip-text bg-gradient-to-tr from-red-600 to-yellow-500 inline-flex justify-center items-center">
-              Fireplexity
-            </span>
-            <span className="block leading-[1.1] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:400ms] [animation-fill-mode:forwards]">
-              Search &amp; Scrape
-            </span>
-          </h1>
-          <p className="mt-3 text-lg text-zinc-600 dark:text-zinc-400 opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:600ms] [animation-fill-mode:forwards]">
-            AI-powered web search with instant results and follow-up questions
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto h-full">
-          {!isChatActive ? (
-            <SearchComponent 
-              handleSubmit={handleSearch}
-              input={input}
-              handleInputChange={handleInputChange}
-              isLoading={isLoading}
-            />
-          ) : (
-            <ChatInterface 
-              messages={messages}
-              sources={sources}
-              followUpQuestions={followUpQuestions}
-              searchStatus={searchStatus}
-              isLoading={isLoading}
-              input={input}
-              handleInputChange={handleInputChange}
-              handleSubmit={handleChatSubmit}
-              messageData={messageData}
-              currentTicker={currentTicker}
-            />
-          )}
-        </div>
-      </div>
-
-      <footer className="px-4 sm:px-6 lg:px-8 py-8 mt-auto">
-        <div className="max-w-7xl mx-auto text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Powered by{' '}
-            <a 
-              href="https://firecrawl.dev" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 font-medium"
-            >
-              Firecrawl
-            </a>
-          </p>
-        </div>
-      </footer>
+    <div className="flex h-full -mt-16"> {/* Compensate for navigation height */}
+      <ConversationSidebar
+        userId={convexUserId}
+        currentConversationId={currentConversationId || undefined}
+        onSelectConversation={handleSelectConversation}
+        onNewConversation={handleNewConversation}
+      />
       
-      <Dialog open={showApiKeyModal} onOpenChange={setShowApiKeyModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Firecrawl API Key Required</DialogTitle>
-            <DialogDescription>
-              To use Fireplexity search, you need a Firecrawl API key. Get one for free at{' '}
-              <a 
-                href="https://www.firecrawl.dev" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-orange-600 hover:text-orange-700 underline"
-              >
-                firecrawl.dev
-              </a>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Input
-              placeholder="Enter your Firecrawl API key"
-              value={firecrawlApiKey}
-              onChange={(e) => setFirecrawlApiKey(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleApiKeySubmit()
-                }
-              }}
-              className="h-12"
-            />
-            <Button onClick={handleApiKeySubmit} variant="orange" className="w-full">
-              Save API Key
-            </Button>
+      <div className="flex-1 flex flex-col pt-16"> {/* Add padding for navigation */}
+        <div className={`px-4 sm:px-6 lg:px-8 pt-8 pb-4 transition-all duration-500 ${isChatActive ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100'}`}>
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-[2rem] lg:text-[3rem] text-[#36322F] dark:text-white font-semibold tracking-tight leading-[1.1]">
+              <span className="relative px-1 pb-1 text-transparent bg-clip-text bg-gradient-to-tr from-red-600 to-yellow-500">
+                AI-Powered Search
+              </span>
+            </h1>
+            <p className="mt-3 text-lg text-zinc-600 dark:text-zinc-400">
+              Search the web with AI and save your conversations
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+
+        <div className="flex-1 px-4 sm:px-6 lg:px-8 overflow-hidden">
+          <div className="max-w-4xl mx-auto h-full">
+            {!isChatActive ? (
+              <SearchComponent 
+                handleSubmit={handleSearch}
+                input={input}
+                handleInputChange={handleInputChange}
+                isLoading={isLoading}
+              />
+            ) : (
+              <ChatInterface 
+                messages={messages}
+                sources={sources}
+                followUpQuestions={followUpQuestions}
+                searchStatus={searchStatus}
+                isLoading={isLoading}
+                input={input}
+                handleInputChange={handleInputChange}
+                handleSubmit={handleChatSubmit}
+                messageData={messageData}
+                currentTicker={currentTicker}
+              />
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

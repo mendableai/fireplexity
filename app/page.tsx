@@ -15,30 +15,8 @@ export default async function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="px-4 sm:px-6 lg:px-8 py-1 mt-2">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <Image 
-              src="/firecrawl-logo-with-fire.png" 
-              alt="Firecrawl Logo" 
-              width={113} 
-              height={24}
-              className="w-[113px] h-auto"
-            />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Button asChild variant="ghost">
-              <a href="/api/auth/signin">Sign In</a>
-            </Button>
-            <Button asChild variant="orange">
-              <a href="/api/auth/signin">Get Started</a>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <div className="px-4 sm:px-6 lg:px-8 pt-8 pb-12">
+    <div className="flex flex-col">
+      <div className="px-4 sm:px-6 lg:px-8 pt-12 pb-12">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-[2.5rem] lg:text-[4.5rem] text-[#36322F] dark:text-white font-semibold tracking-tight leading-[1.1] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:200ms] [animation-fill-mode:forwards]">
             <span className="relative px-1 pb-1 text-transparent bg-clip-text bg-gradient-to-tr from-red-600 to-yellow-500 inline-flex justify-center items-center">

@@ -59,4 +59,33 @@ export default defineSchema({
     .index("by_user_id", ["userId"])
     .index("by_polar_subscription_id", ["polarSubscriptionId"])
     .index("by_polar_customer_id", ["polarCustomerId"]),
+
+  conversations: defineTable({
+    userId: v.id("users"),
+    title: v.string(),
+    lastMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_updated_at", ["userId", "updatedAt"]),
+
+  messages: defineTable({
+    conversationId: v.id("conversations"),
+    userId: v.optional(v.id("users")),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    content: v.string(),
+    sources: v.optional(v.array(v.object({
+      title: v.string(),
+      url: v.string(),
+      snippet: v.optional(v.string()),
+      content: v.optional(v.string()),
+      favicon: v.optional(v.string()),
+    }))),
+    followUpQuestions: v.optional(v.array(v.string())),
+    timestamp: v.optional(v.number()),
+    createdAt: v.optional(v.number()),
+  })
+    .index("by_conversation", ["conversationId"])
+    .index("by_conversation_timestamp", ["conversationId", "timestamp"]),
 });
