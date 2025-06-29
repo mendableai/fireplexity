@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
@@ -17,14 +17,15 @@ interface User {
   lastName?: string
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams()
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
   
   const userData = useQuery(api.users.getUserByWorkosId, 
-    user ? { workosId: user.id } : 'skip'
+    user && isInitialized ? { workosId: user.id } : 'skip'
   )
   
   const createUser = useMutation(api.users.createUser)
@@ -42,6 +43,7 @@ export default function DashboardPage() {
         console.error('Auth check failed:', error)
       } finally {
         setIsLoading(false)
+        setIsInitialized(true)
       }
     }
     
@@ -124,6 +126,17 @@ export default function DashboardPage() {
   }
 
 
+  if (isLoading || !isInitialized) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-pulse text-center">
+          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-4 mx-auto" />
+          <div className="h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded mx-auto" />
+        </div>
+      </div>
+    )
+  }
+
   if (!user) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -139,11 +152,23 @@ export default function DashboardPage() {
     )
   }
 
+  // Wait for userData to be loaded before calculating tier info
+  if (!userData && user) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-pulse text-center">
+          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-4 mx-auto" />
+          <div className="h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded mx-auto" />
+        </div>
+      </div>
+    )
+  }
+
   const currentTier = userData?.subscriptionTier || 'free'
   const isProUser = currentTier === 'pro' && userData?.subscriptionStatus === 'active'
   
   let searchesUsed = 0
-  let searchLimit = SUBSCRIPTION_TIERS.FREE.searches_per_day
+  let searchLimit: number = SUBSCRIPTION_TIERS.FREE.searches_per_day
   let periodLabel = 'Today'
   
   if (isProUser) {
@@ -337,5 +362,20 @@ export default function DashboardPage() {
         </div>
       </footer>
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-pulse text-center">
+          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-4 mx-auto" />
+          <div className="h-10 w-24 bg-gray-200 dark:bg-gray-700 rounded mx-auto" />
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   )
 }

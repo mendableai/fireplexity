@@ -20,9 +20,10 @@ export function Navigation() {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
 
   const userData = useQuery(api.users.getUserByWorkosId, 
-    user ? { workosId: user.id } : 'skip'
+    user && isInitialized ? { workosId: user.id } : 'skip'
   )
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export function Navigation() {
         console.error('Auth check failed:', error)
       } finally {
         setIsLoading(false)
+        setIsInitialized(true)
       }
     }
     
@@ -96,8 +98,11 @@ export function Navigation() {
           </nav>
 
           <div className="hidden md:flex items-center gap-4">
-            {isLoading ? (
-              <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            {isLoading || !isInitialized ? (
+              <div className="flex items-center gap-4">
+                <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+                <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
             ) : user ? (
               <>
                 {userData && (
