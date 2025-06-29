@@ -1,231 +1,14 @@
-'use client'
-
-import { useChat } from 'ai/react'
-import { SearchComponent } from './search'
-import { ChatInterface } from './chat-interface'
-import { SearchResult } from './types'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useState, useEffect, useRef } from 'react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { toast } from "sonner"
-import { ErrorDisplay } from '@/components/error-display'
+import { SUBSCRIPTION_TIERS } from '@/lib/polar'
 
-interface MessageData {
-  sources: SearchResult[]
-  followUpQuestions: string[]
-  ticker?: string
-}
-
-export default function FireplexityPage() {
-  const [sources, setSources] = useState<SearchResult[]>([])
-  const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([])
-  const [searchStatus, setSearchStatus] = useState('')
-  const [hasSearched, setHasSearched] = useState(false)
-  const lastDataLength = useRef(0)
-  const [messageData, setMessageData] = useState<Map<number, MessageData>>(new Map())
-  const currentMessageIndex = useRef(0)
-  const [currentTicker, setCurrentTicker] = useState<string | null>(null)
-  const [firecrawlApiKey, setFirecrawlApiKey] = useState<string>('')
-  const [hasApiKey, setHasApiKey] = useState<boolean>(false)
-  const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false)
-  const [, setIsCheckingEnv] = useState<boolean>(true)
-  const [pendingQuery, setPendingQuery] = useState<string>('')
-
-  const { messages, input, handleInputChange, handleSubmit, isLoading, data } = useChat({
-    api: '/api/fireplexity/search',
-    body: {
-      ...(firecrawlApiKey && { firecrawlApiKey })
-    },
-    onResponse: () => {
-      // Clear status when response starts
-      setSearchStatus('')
-      // Clear current data for new response
-      setSources([])
-      setFollowUpQuestions([])
-      setCurrentTicker(null)
-      // Track the current message index (assistant messages only)
-      const assistantMessages = messages.filter(m => m.role === 'assistant')
-      currentMessageIndex.current = assistantMessages.length
-    },
-    onError: (error) => {
-      console.error('Chat error:', error)
-      setSearchStatus('')
-    },
-    onFinish: () => {
-      setSearchStatus('')
-      // Reset data length tracker
-      lastDataLength.current = 0
-    }
-  })
-
-  // Handle custom data from stream - only process new items
-  useEffect(() => {
-    if (data && Array.isArray(data)) {
-      // Only process new items that haven't been processed before
-      const newItems = data.slice(lastDataLength.current)
-      
-      newItems.forEach((item) => {
-        if (!item || typeof item !== 'object' || !('type' in item)) return
-        
-        const typedItem = item as unknown as { type: string; message?: string; sources?: SearchResult[]; questions?: string[]; symbol?: string }
-        if (typedItem.type === 'status') {
-          setSearchStatus(typedItem.message || '')
-        }
-        if (typedItem.type === 'ticker' && typedItem.symbol) {
-          setCurrentTicker(typedItem.symbol)
-          // Also store in message data map
-          const newMap = new Map(messageData)
-          const existingData = newMap.get(currentMessageIndex.current) || { sources: [], followUpQuestions: [] }
-          newMap.set(currentMessageIndex.current, { ...existingData, ticker: typedItem.symbol })
-          setMessageData(newMap)
-        }
-        if (typedItem.type === 'sources' && typedItem.sources) {
-          setSources(typedItem.sources)
-          // Also store in message data map
-          const newMap = new Map(messageData)
-          const existingData = newMap.get(currentMessageIndex.current) || { sources: [], followUpQuestions: [] }
-          newMap.set(currentMessageIndex.current, { ...existingData, sources: typedItem.sources })
-          setMessageData(newMap)
-        }
-        if (typedItem.type === 'follow_up_questions' && typedItem.questions) {
-          setFollowUpQuestions(typedItem.questions)
-          // Also store in message data map
-          const newMap = new Map(messageData)
-          const existingData = newMap.get(currentMessageIndex.current) || { sources: [], followUpQuestions: [] }
-          newMap.set(currentMessageIndex.current, { ...existingData, followUpQuestions: typedItem.questions })
-          setMessageData(newMap)
-        }
-      })
-      
-      // Update the last processed length
-      lastDataLength.current = data.length
-    }
-  }, [data, messageData])
-
-
-  // Check for environment variables on mount
-  useEffect(() => {
-    const checkApiKey = async () => {
-      try {
-        const response = await fetch('/api/fireplexity/check-env')
-        const data = await response.json()
-        
-        if (data.hasFirecrawlKey) {
-          setHasApiKey(true)
-        } else {
-          // Check localStorage for user's API key
-          const storedKey = localStorage.getItem('firecrawl-api-key')
-          if (storedKey) {
-            setFirecrawlApiKey(storedKey)
-            setHasApiKey(true)
-          }
-        }
-      } catch (error) {
-        console.error('Error checking environment:', error)
-      } finally {
-        setIsCheckingEnv(false)
-      }
-    }
-    
-    checkApiKey()
-  }, [])
-
-  const handleApiKeySubmit = () => {
-    if (firecrawlApiKey.trim()) {
-      localStorage.setItem('firecrawl-api-key', firecrawlApiKey)
-      setHasApiKey(true)
-      setShowApiKeyModal(false)
-      toast.success('API key saved successfully!')
-      
-      // If there's a pending query, submit it
-      if (pendingQuery) {
-        const fakeEvent = {
-          preventDefault: () => {},
-          currentTarget: {
-            querySelector: () => ({ value: pendingQuery })
-          }
-        } as any
-        handleInputChange({ target: { value: pendingQuery } } as any)
-        setTimeout(() => {
-          handleSubmit(fakeEvent)
-          setPendingQuery('')
-        }, 100)
-      }
-    }
-  }
-
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (!input.trim()) return
-    
-    // Check if we have an API key
-    if (!hasApiKey) {
-      setPendingQuery(input)
-      setShowApiKeyModal(true)
-      return
-    }
-    
-    setHasSearched(true)
-    // Clear current data immediately when submitting new query
-    setSources([])
-    setFollowUpQuestions([])
-    setCurrentTicker(null)
-    handleSubmit(e)
-  }
-  
-  // Wrapped submit handler for chat interface
-  const handleChatSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    // Check if we have an API key
-    if (!hasApiKey) {
-      setPendingQuery(input)
-      setShowApiKeyModal(true)
-      e.preventDefault()
-      return
-    }
-    
-    // Store current data in messageData before clearing
-    if (messages.length > 0 && sources.length > 0) {
-      const assistantMessages = messages.filter(m => m.role === 'assistant')
-      const lastAssistantIndex = assistantMessages.length - 1
-      if (lastAssistantIndex >= 0) {
-        const newMap = new Map(messageData)
-        newMap.set(lastAssistantIndex, {
-          sources: sources,
-          followUpQuestions: followUpQuestions,
-          ticker: currentTicker || undefined
-        })
-        setMessageData(newMap)
-      }
-    }
-    
-    // Clear current data immediately when submitting new query
-    setSources([])
-    setFollowUpQuestions([])
-    setCurrentTicker(null)
-    handleSubmit(e)
-  }
-
-  const isChatActive = hasSearched || messages.length > 0
-
+export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header with logo - matching other pages */}
       <header className="px-4 sm:px-6 lg:px-8 py-1 mt-2">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link
-            href="https://firecrawl.dev"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <Link href="/">
             <Image 
               src="/firecrawl-logo-with-fire.png" 
               alt="Firecrawl Logo" 
@@ -234,71 +17,160 @@ export default function FireplexityPage() {
               className="w-[113px] h-auto"
             />
           </Link>
-          <Button
-            asChild
-            variant="code"
-            className="font-medium flex items-center gap-2"
-          >
-            <a 
-              href="https://github.com/mendableai/fireplexity" 
-              target="_blank" 
-              rel="noopener noreferrer"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-              </svg>
-              Use this template
-            </a>
-          </Button>
+          <div className="flex items-center gap-4">
+            <Button asChild variant="ghost">
+              <Link href="/api/auth/signin">Sign In</Link>
+            </Button>
+            <Button asChild variant="orange">
+              <Link href="/api/auth/signin">Get Started</Link>
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* Hero section - matching other pages */}
-      <div className={`px-4 sm:px-6 lg:px-8 pt-2 pb-4 transition-all duration-500 ${isChatActive ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100'}`}>
+      <div className="px-4 sm:px-6 lg:px-8 pt-8 pb-12">
         <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-[2.5rem] lg:text-[3.8rem] text-[#36322F] dark:text-white font-semibold tracking-tight leading-[1.1] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:200ms] [animation-fill-mode:forwards]">
+          <h1 className="text-[2.5rem] lg:text-[4.5rem] text-[#36322F] dark:text-white font-semibold tracking-tight leading-[1.1] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:200ms] [animation-fill-mode:forwards]">
             <span className="relative px-1 pb-1 text-transparent bg-clip-text bg-gradient-to-tr from-red-600 to-yellow-500 inline-flex justify-center items-center">
               Fireplexity
             </span>
             <span className="block leading-[1.1] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:400ms] [animation-fill-mode:forwards]">
-              Search & Scrape
+              AI-Powered Search
             </span>
           </h1>
-          <p className="mt-3 text-lg text-zinc-600 dark:text-zinc-400 opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:600ms] [animation-fill-mode:forwards]">
-            AI-powered web search with instant results and follow-up questions
+          <p className="mt-6 text-xl text-zinc-600 dark:text-zinc-400 max-w-3xl mx-auto opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:600ms] [animation-fill-mode:forwards]">
+            Get instant, intelligent answers from the web with real-time citations and follow-up questions. 
+            Search smarter, not harder.
           </p>
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:800ms] [animation-fill-mode:forwards]">
+            <Button asChild size="lg" variant="orange" className="text-lg px-8 py-3">
+              <Link href="/api/auth/signin">Start Searching Free</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="text-lg px-8 py-3">
+              <Link href="#features">Learn More</Link>
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Main content wrapper */}
-      <div className="flex-1 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto h-full">
-          {!isChatActive ? (
-            <SearchComponent 
-              handleSubmit={handleSearch}
-              input={input}
-              handleInputChange={handleInputChange}
-              isLoading={isLoading}
-            />
-          ) : (
-            <ChatInterface 
-              messages={messages}
-              sources={sources}
-              followUpQuestions={followUpQuestions}
-              searchStatus={searchStatus}
-              isLoading={isLoading}
-              input={input}
-              handleInputChange={handleInputChange}
-              handleSubmit={handleChatSubmit}
-              messageData={messageData}
-              currentTicker={currentTicker}
-            />
-          )}
+      <section id="features" className="px-4 sm:px-6 lg:px-8 py-16 bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl lg:text-4xl font-semibold text-gray-900 dark:text-white mb-4">
+              Why Choose Fireplexity?
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+              Experience the future of web search with AI-powered intelligence and real-time data.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center p-6">
+              <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Lightning Fast</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Get instant answers with real-time web scraping and AI processing in seconds.
+              </p>
+            </div>
+            
+            <div className="text-center p-6">
+              <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Verified Sources</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Every answer comes with real citations and source links for complete transparency.
+              </p>
+            </div>
+            
+            <div className="text-center p-6">
+              <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Smart Follow-ups</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Get intelligent follow-up questions to dive deeper into any topic.
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Footer - matching other pages */}
-      <footer className="px-4 sm:px-6 lg:px-8 py-8 mt-auto">
+      <section className="px-4 sm:px-6 lg:px-8 py-16">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl lg:text-4xl font-semibold text-gray-900 dark:text-white mb-4">
+              Simple, Transparent Pricing
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400">
+              Start free, upgrade when you need more. No hidden fees.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center">
+              <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                {SUBSCRIPTION_TIERS.FREE.name}
+              </h3>
+              <div className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+                ${SUBSCRIPTION_TIERS.FREE.price}
+                <span className="text-lg font-normal text-gray-600 dark:text-gray-400">/month</span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                {SUBSCRIPTION_TIERS.FREE.features.map((feature, index) => (
+                  <li key={index} className="flex items-center justify-center">
+                    <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-600 dark:text-gray-400">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/api/auth/signin">Get Started Free</Link>
+              </Button>
+            </div>
+            
+            <div className="border-2 border-orange-500 rounded-lg p-8 text-center relative">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <span className="bg-orange-500 text-white px-4 py-1 rounded-full text-sm font-medium">
+                  Most Popular
+                </span>
+              </div>
+              <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                {SUBSCRIPTION_TIERS.PRO.name}
+              </h3>
+              <div className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+                ${SUBSCRIPTION_TIERS.PRO.price}
+                <span className="text-lg font-normal text-gray-600 dark:text-gray-400">/month</span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                {SUBSCRIPTION_TIERS.PRO.features.map((feature, index) => (
+                  <li key={index} className="flex items-center justify-center">
+                    <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-600 dark:text-gray-400">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button asChild variant="orange" className="w-full">
+                <Link href="/api/auth/signin">Upgrade to Pro</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer className="px-4 sm:px-6 lg:px-8 py-8 mt-auto border-t border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto text-center">
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Powered by{' '}
@@ -310,46 +182,18 @@ export default function FireplexityPage() {
             >
               Firecrawl
             </a>
+            {' • '}
+            <a 
+              href="https://github.com/mendableai/fireplexity" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 font-medium"
+            >
+              Open Source
+            </a>
           </p>
         </div>
       </footer>
-      
-      {/* API Key Modal */}
-      <Dialog open={showApiKeyModal} onOpenChange={setShowApiKeyModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Firecrawl API Key Required</DialogTitle>
-            <DialogDescription>
-              To use Fireplexity search, you need a Firecrawl API key. Get one for free at{' '}
-              <a 
-                href="https://www.firecrawl.dev" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-orange-600 hover:text-orange-700 underline"
-              >
-                firecrawl.dev
-              </a>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Input
-              placeholder="Enter your Firecrawl API key"
-              value={firecrawlApiKey}
-              onChange={(e) => setFirecrawlApiKey(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleApiKeySubmit()
-                }
-              }}
-              className="h-12"
-            />
-            <Button onClick={handleApiKeySubmit} variant="orange" className="w-full">
-              Save API Key
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
